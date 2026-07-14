@@ -2,9 +2,10 @@ import json
 import os
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
-from ._utils import handle_command_error, ok, warn
+from ._utils import check_target, handle_command_error, ok, warn
 
 
 class Jail(commands.Cog):
@@ -52,14 +53,11 @@ class Jail(commands.Cog):
 
         return role
 
-    @commands.command(name="jail", usage="<member>")
+    @commands.hybrid_command(name="jail", usage="<member>", description="Jail a member by removing all roles")
     @commands.has_permissions(manage_roles=True)
+    @app_commands.describe(member="The member to jail")
     async def jail(self, ctx, member: discord.Member):
-        if member == ctx.author:
-            await ctx.send(embed=warn("You can't jail yourself."))
-            return
-        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
-            await ctx.send(embed=warn("You can't jail someone with an equal or higher role."))
+        if not await check_target(ctx, member, "jail"):
             return
 
         jail_role = await self.get_jail_role(ctx.guild)
@@ -78,14 +76,11 @@ class Jail(commands.Cog):
         await member.edit(roles=[jail_role], reason=f"Jailed by {ctx.author}")
         await ctx.send(embed=ok(f"{member.mention} has been jailed."))
 
-    @commands.command(name="unjail", usage="<member>")
+    @commands.hybrid_command(name="unjail", usage="<member>", description="Restore a member's roles and unjail them")
     @commands.has_permissions(manage_roles=True)
+    @app_commands.describe(member="The member to unjail")
     async def unjail(self, ctx, member: discord.Member):
-        if member == ctx.author:
-            await ctx.send(embed=warn("You can't unjail yourself."))
-            return
-        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
-            await ctx.send(embed=warn("You can't unjail someone with an equal or higher role."))
+        if not await check_target(ctx, member, "unjail"):
             return
 
         jail_role = await self.get_jail_role(ctx.guild)

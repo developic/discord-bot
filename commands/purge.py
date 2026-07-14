@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from ._utils import handle_command_error, ok, warn
@@ -8,8 +9,9 @@ class Purge(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="purge", usage="<amount>")
+    @commands.hybrid_command(name="purge", usage="<amount>", description="Bulk delete messages (1-100)")
     @commands.has_permissions(manage_messages=True)
+    @app_commands.describe(amount="Number of messages to delete (1-100)")
     async def purge(self, ctx: commands.Context, amount: int):
         if amount < 1 or amount > 100:
             await ctx.send(embed=warn("Amount must be between 1 and 100."))

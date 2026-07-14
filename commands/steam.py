@@ -21,12 +21,12 @@ class Steam(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="steam", description="Look up a game on Steam")
+    @app_commands.command(name="steam", description="Look up a game on Steam")
     @app_commands.allowed_installs(guilds=False, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(game="The name of the game")
-    async def steam(self, ctx: commands.Context, *, game: str):
-        await ctx.defer()
+    async def steam(self, interaction: discord.Interaction, game: str):
+        await interaction.response.defer()
 
         search_url = f"https://store.steampowered.com/api/storesearch/?term={game}&cc=us&l=en"
 
@@ -34,12 +34,12 @@ class Steam(commands.Cog):
             search_data = await fetch_json(session, search_url)
 
         if not search_data:
-            await ctx.send(embed=warn("Could not search Steam right now."))
+            await interaction.followup.send(embed=warn("Could not search Steam right now."))
             return
 
         items = search_data.get("items", [])
         if not items:
-            await ctx.send(embed=warn(f"No results found for `{game}`."))
+            await interaction.followup.send(embed=warn(f"No results found for `{game}`."))
             return
 
         app_id = items[0]["id"]
@@ -50,7 +50,7 @@ class Steam(commands.Cog):
 
         app_data = detail_data.get(str(app_id), {})
         if not app_data.get("success") or not app_data.get("data"):
-            await ctx.send(embed=warn("Could not fetch game details."))
+            await interaction.followup.send(embed=warn("Could not fetch game details."))
             return
 
         d = app_data["data"]
@@ -103,16 +103,7 @@ class Steam(commands.Cog):
 
         embed.set_footer(text=f"App ID: {app_id}")
 
-        await ctx.send(embed=embed)
-
-    @steam.error
-    async def steam_error(self, ctx, error):
-        if await handle_api_error(ctx, error, "Could not search Steam right now."):
-            return
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(embed=warn("Usage: `!steam <game>`"))
-        else:
-            raise error
+        await interaction.followup.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):

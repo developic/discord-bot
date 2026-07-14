@@ -61,12 +61,12 @@ class Weather(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="weather", usage="<city>", description="Get current weather for a city")
+    @app_commands.command(name="weather", description="Get current weather for a city")
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(city="The city to look up")
-    async def weather(self, ctx: commands.Context, *, city: str):
-        await ctx.defer()
+    async def weather(self, interaction: discord.Interaction, city: str):
+        await interaction.response.defer()
 
         url = f"https://wttr.in/{city}?format=j1"
 
@@ -74,7 +74,7 @@ class Weather(commands.Cog):
             data = await fetch_json(session, url, timeout=aiohttp.ClientTimeout(total=10))
 
         if not data.get("current_condition"):
-            await ctx.send(embed=warn(f"Could not find weather for `{city}`."))
+            await interaction.followup.send(embed=warn(f"Could not find weather for `{city}`."))
             return
 
         cc = data["current_condition"][0]
@@ -102,18 +102,9 @@ class Weather(commands.Cog):
         embed.add_field(name="\ud83d\udca7 Humidity", value=f"{humidity}%", inline=True)
         embed.add_field(name="\ud83d\udca8 Wind", value=f"{wind_speed} km/h {wind_dir}", inline=True)
         embed.add_field(name="\ud83c\udf21\ufe0f Feels Like", value=f"{feels_like}\u00b0C", inline=True)
-        embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"Requested by {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
 
-        await ctx.send(embed=embed)
-
-    @weather.error
-    async def weather_error(self, ctx, error):
-        if await handle_api_error(ctx, error, "Could not fetch weather data."):
-            return
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(embed=warn(f"Usage: `{ctx.prefix}weather <city>`"))
-        else:
-            raise error
+        await interaction.followup.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):

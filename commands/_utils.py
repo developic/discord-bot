@@ -95,3 +95,13 @@ def get_cogs_memory(bot) -> list[tuple[str, int, int]]:
 
     sorted_cogs = sorted(modules.values(), key=lambda x: x["size"], reverse=True)
     return [(c["name"], c["count"], c["size"]) for c in sorted_cogs]
+
+
+async def check_target(ctx, member: discord.Member, action: str) -> bool:
+    if member == ctx.author:
+        await ctx.send(embed=warn(f"You can't {action} yourself."))
+        return False
+    if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
+        await ctx.send(embed=warn(f"You can't {action} someone with an equal or higher role."))
+        return False
+    return True

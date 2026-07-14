@@ -3,9 +3,10 @@ import os
 import datetime
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR, handle_command_error, ok, warn
+from ._utils import COLOR, check_target, handle_command_error, ok, warn
 
 
 class Warn(commands.Cog):
@@ -23,14 +24,11 @@ class Warn(commands.Cog):
         with open(self.data_file, "w") as f:
             json.dump(self.data, f, indent=4)
 
-    @commands.group(name="warn", invoke_without_command=True, usage="<member> [reason=No reason provided]")
+    @commands.hybrid_group(name="warn", invoke_without_command=True, usage="<member> [reason=No reason provided]", description="Issue a warning to a member")
     @commands.has_permissions(moderate_members=True)
+    @app_commands.describe(member="The member to warn", reason="Reason for the warning")
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
-        if member == ctx.author:
-            await ctx.send(embed=warn("You can't warn yourself."))
-            return
-        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
-            await ctx.send(embed=warn("You can't warn someone with an equal or higher role."))
+        if not await check_target(ctx, member, "warn"):
             return
 
         guild_id = str(ctx.guild.id)
@@ -50,6 +48,7 @@ class Warn(commands.Cog):
         await ctx.send(embed=ok(f"Warned {member.mention} | {reason} (warning #{warn_id})"))
 
     @warn.command(name="list", usage="<member>")
+    @app_commands.describe(member="The member to list warnings for")
     async def warn_list(self, ctx: commands.Context, member: discord.Member):
         guild_id = str(ctx.guild.id)
         member_id = str(member.id)
@@ -69,8 +68,9 @@ class Warn(commands.Cog):
             color=COLOR,
         ))
 
-    @commands.command(name="unwarn", usage="<member> <warn_id>")
+    @commands.hybrid_command(name="unwarn", usage="<member> <warn_id>", description="Remove a specific warning by ID")
     @commands.has_permissions(moderate_members=True)
+    @app_commands.describe(member="The member to remove a warning from", warn_id="The warning ID to remove")
     async def unwarn(self, ctx: commands.Context, member: discord.Member, warn_id: int):
         guild_id = str(ctx.guild.id)
         member_id = str(member.id)

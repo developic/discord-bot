@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from ._utils import handle_command_error, ok, parse_duration, warn
@@ -10,8 +11,9 @@ class Slowmode(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="slowdown", usage="<duration>")
+    @commands.hybrid_command(name="slowdown", usage="<duration>", description="Set channel slowmode")
     @commands.has_permissions(manage_channels=True)
+    @app_commands.describe(duration="Duration (e.g. 10, 2s, 5m, 1h) or 0/off to disable")
     async def slowdown(self, ctx: commands.Context, duration: str):
         seconds = parse_duration(duration)
 
@@ -30,7 +32,7 @@ class Slowmode(commands.Cog):
         else:
             await ctx.send(embed=ok(f"Slowmode set to {seconds} seconds."))
 
-    @commands.group(name="slowmode", invoke_without_command=True)
+    @commands.hybrid_group(name="slowmode", invoke_without_command=True)
     @commands.has_permissions(manage_channels=True)
     async def slowmode(self, ctx: commands.Context):
         await ctx.send(embed=warn(
