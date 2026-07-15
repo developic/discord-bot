@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR, ensure_author, handle_api_error, TimeoutView
+from ._utils import COLOR, check_allowed, ensure_author, TimeoutView
 
 CHOICES = ("rock", "paper", "scissors")
 BEATS = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
@@ -88,21 +88,18 @@ class RPS(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="rps", description="Play Rock Paper Scissors")
+    @app_commands.command(name="rps", description="Play Rock Paper Scissors")
     @app_commands.allowed_installs(guilds=False, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-    async def rps(self, ctx: commands.Context):
+    async def rps(self, interaction: discord.Interaction):
+        if not await check_allowed(interaction):
+            return
         embed = discord.Embed(
             title="Rock Paper Scissors",
             description="**Choose your move!**",
             color=COLOR,
         )
-        await ctx.send(embed=embed, view=RPSView(author_id=ctx.author.id))
-
-    @rps.error
-    async def rps_error(self, ctx, error):
-        if not await handle_api_error(ctx, error):
-            raise error
+        await interaction.response.send_message(embed=embed, view=RPSView(author_id=interaction.user.id))
 
 
 async def setup(bot: commands.Bot):

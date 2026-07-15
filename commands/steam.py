@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR, fetch_json, handle_api_error, warn
+from ._utils import COLOR, check_allowed, fetch_json, handle_api_error, warn
 
 
 def _format_price(price: dict | None) -> str:
@@ -26,6 +26,8 @@ class Steam(commands.Cog):
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(game="The name of the game")
     async def steam(self, interaction: discord.Interaction, game: str):
+        if not await check_allowed(interaction):
+            return
         await interaction.response.defer()
 
         search_url = f"https://store.steampowered.com/api/storesearch/?term={game}&cc=us&l=en"

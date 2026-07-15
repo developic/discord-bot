@@ -1,4 +1,7 @@
+"""Utility functions and helpers."""
+
 import gc
+import os
 import sys
 
 import aiohttp
@@ -103,5 +106,20 @@ async def check_target(ctx, member: discord.Member, action: str) -> bool:
         return False
     if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
         await ctx.send(embed=warn(f"You can't {action} someone with an equal or higher role."))
+        return False
+    return True
+
+
+ALLOWED_USERS: set[int] = set()
+
+def set_allowed_users(user_ids: list[int]):
+    ALLOWED_USERS.clear()
+    ALLOWED_USERS.update(user_ids)
+
+async def check_allowed(interaction: discord.Interaction) -> bool:
+    if not ALLOWED_USERS:
+        return True
+    if interaction.user.id not in ALLOWED_USERS:
+        await interaction.response.send_message("You are not allowed to use this command.", ephemeral=True)
         return False
     return True

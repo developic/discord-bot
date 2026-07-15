@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR, fetch_json, handle_api_error, warn
+from ._utils import COLOR, check_allowed, fetch_json, handle_api_error, warn
 
 CONDITION_EMOJIS = {
     "113": "\u2600\ufe0f",
@@ -62,10 +62,12 @@ class Weather(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="weather", description="Get current weather for a city")
-    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_installs(guilds=False, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(city="The city to look up")
     async def weather(self, interaction: discord.Interaction, city: str):
+        if not await check_allowed(interaction):
+            return
         await interaction.response.defer()
 
         url = f"https://wttr.in/{city}?format=j1"

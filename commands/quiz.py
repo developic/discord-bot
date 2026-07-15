@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR, fetch_json, handle_api_error, TimeoutView
+from ._utils import COLOR, check_allowed, fetch_json, TimeoutView, warn
 
 
 class QuizButton(discord.ui.Button):
@@ -49,17 +49,19 @@ class Quiz(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="quiz", description="Test your knowledge with a trivia question")
-    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.command(name="quiz", description="Test your knowledge with a trivia question")
+    @app_commands.allowed_installs(guilds=False, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-    async def quiz(self, ctx: commands.Context):
-        await ctx.defer()
+    async def quiz(self, interaction: discord.Interaction):
+        if not await check_allowed(interaction):
+            return
+        await interaction.response.defer()
 
         async with aiohttp.ClientSession() as session:
             data = await fetch_json(session, "https://opentdb.com/api.php?amount=1")
 
         if data is None or data.get("response_code") != 0 or not data.get("results"):
-            await ctx.send(embed=warn("Could not fetch a question right now."))
+            await interaction.followup.send(embed=warn("Could not fetch a question right now."))
             return
 
         result = data["results"][0]
@@ -80,12 +82,7 @@ class Quiz(commands.Cog):
         embed.set_footer(text=f"Difficulty: {difficulty}")
 
         view = QuizView(correct, answers)
-        await ctx.send(embed=embed, view=view)
-
-    @quiz.error
-    async def quiz_error(self, ctx, error):
-        if not await handle_api_error(ctx, error, "Could not fetch a question right now."):
-            raise error
+        await interaction.followup.send(embed=embed, view=view)
 
 
 async def setup(bot: commands.Bot):

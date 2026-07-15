@@ -6,9 +6,7 @@ import discord
 import psutil
 from discord import app_commands
 from discord.ext import commands
-from ._utils import COLOR, get_cogs_memory
-
-ALLOWED_USER = 1286639756805013534
+from ._utils import COLOR, check_allowed, get_cogs_memory
 
 
 def _format_bytes(b: int) -> str:
@@ -40,13 +38,10 @@ class System(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="system", description="Show system information")
-    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_installs(guilds=False, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def system(self, interaction: discord.Interaction):
-        if interaction.user.id != ALLOWED_USER:
-            await interaction.response.send_message(
-                "You are not authorized to use this command.", ephemeral=True
-            )
+        if not await check_allowed(interaction):
             return
 
         cpu_usage = psutil.cpu_percent(interval=0.5)

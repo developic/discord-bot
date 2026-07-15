@@ -5,6 +5,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ._utils import check_allowed
+
 WORD_MAP = {
     r"\byou're\b": "chu're", r"\byou\b": "chu", r"\byour\b": "chur",
     r"\bmy\b": "mai", r"\bmyself\b": "mai sewf",
@@ -98,6 +100,8 @@ class Uwu(commands.Cog):
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(text="The text to uwu-ify")
     async def uwu(self, interaction: discord.Interaction, text: str):
+        if not await check_allowed(interaction):
+            return
         if len(text) > 1000:
             await interaction.response.send_message("Text too long (max 1000 chars).", ephemeral=True)
             return

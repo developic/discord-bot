@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR
+from ._utils import COLOR, check_allowed
 
 
 class Gay(commands.Cog):
@@ -16,6 +16,8 @@ class Gay(commands.Cog):
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(target="The person to check")
     async def gay(self, interaction: discord.Interaction, target: discord.User | None = None):
+        if not await check_allowed(interaction):
+            return
         target = target or interaction.user
         percent = random.randint(0, 100)
 

@@ -5,10 +5,16 @@ import psutil
 from discord.ext import commands
 from dotenv import load_dotenv
 
+from commands._utils import set_allowed_users
+
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 COMMAND_PREFIX = "!"
+
+allowed_ids = os.getenv("ALLOWED_USER_IDS")
+if allowed_ids:
+    set_allowed_users([int(i) for i in allowed_ids.split(",") if i.strip()])
 
 
 class Bot(commands.Bot):
