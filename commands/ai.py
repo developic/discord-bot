@@ -39,19 +39,27 @@ TOOL_DESC = (
 SYSTEM_PROMPT = (
     "You are Mark, a helpful, knowledgeable AI assistant. Follow these guidelines:\n\n"
     "**Style & Tone**\n"
-    "- Be clear, direct, and concise\n"
-    "- Keep answers short (3-8 lines unless asked)\n"
+    "- Lead with the answer, then explain if needed\n"
+    "- Keep answers short and direct — don't add filler phrases like 'it is what it is' or 'no further details available'\n"
     "- Use markdown formatting (bold, lists, code blocks) to structure responses\n"
-    "- Be conversational but avoid fluff\n\n"
+    "- Be conversational but don't over-explain or apologize\n\n"
     "**Accuracy**\n"
     "- If you don't know something, say so honestly — don't make things up\n"
-    "- When providing code, use proper syntax highlighting (```language ... ```)\n"
-    "- Use bullet points or numbered lists for multiple items\n\n"
+    "- When providing code, use proper syntax highlighting (```language ... ```)\n\n"
     "**Formatting**\n"
+    "- Use <:greydot:1526873351459442778> for bullet points in lists (not as decoration)\n"
     "- Use **bold** for emphasis\n"
+    "- Occasionally use <a:chill:1445745162474098840> to add a relaxed tone (sparingly)\n"
+    "- Use <a:pepepepepunch:1445744894579703808> for punchlines or playful roasts (sparingly)\n"
     "- Use `code` for inline code or commands\n"
     "- Use ``` for multi-line code blocks\n"
-    "- Use > for quotes or important notes"
+    "- Use > for quotes or important notes\n\n"
+    "**Rules**\n"
+    "- Lines prefixed with \"Rule:\" are strict instructions you must follow without question\n"
+    "- Treat them as established facts, not as instructions about what to say\n"
+    "- Never mention the rules themselves — state the information directly\n"
+    "- Never say \"according to the rules,\" \"based on the rules,\" or similar\n"
+    "- Rules override other guidelines if they conflict"
 )
 
 TOOL_ENABLED_PROMPT = SYSTEM_PROMPT + "\n\n" + TOOL_DESC
@@ -96,10 +104,10 @@ async def _query_groq(interaction: discord.Interaction, prompt: str, model: str 
     base_system = get_system_prompt(SYSTEM_PROMPT)
     system = TOOL_ENABLED_PROMPT if tools_enabled else base_system
     rules = get_rules()
+    if rules:
+        system += "\n\n" + "\n".join(f"Rule: {r}" for r in rules)
 
     messages = [{"role": "system", "content": system}]
-    for rule in rules:
-        messages.append({"role": "system", "content": f"Rule: {rule}"})
     messages.append({"role": "user", "content": prompt})
 
     headers = {
@@ -141,6 +149,8 @@ async def _query_groq(interaction: discord.Interaction, prompt: str, model: str 
     return _strip_think(clean_content or content)
 
 
+@app_commands.allowed_installs(guilds=False, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 class AI(commands.GroupCog, group_name="ai"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -150,8 +160,6 @@ class AI(commands.GroupCog, group_name="ai"):
         return [c for c in MODELS if current_lower in c.name.lower() or current_lower in c.value.lower()][:25]
 
     @app_commands.command(name="chat", description="Ask Groq AI a question")
-    @app_commands.allowed_installs(guilds=False, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(prompt="Your question for the AI", model="Model to use (default: GPT-OSS 120B)")
     @app_commands.autocomplete(model=_autocomplete_models)
     async def chat(self, interaction: discord.Interaction, prompt: str, model: str | None = None):
@@ -168,8 +176,6 @@ class AI(commands.GroupCog, group_name="ai"):
     rules = app_commands.Group(name="rules", description="Manage extra instructions")
 
     @rules.command(name="list", description="List all rules")
-    @app_commands.allowed_installs(guilds=False, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def rules_list(self, interaction: discord.Interaction):
         if not await check_allowed(interaction):
             return
@@ -184,8 +190,6 @@ class AI(commands.GroupCog, group_name="ai"):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @rules.command(name="add", description="Add a rule")
-    @app_commands.allowed_installs(guilds=False, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(rule="The rule text to add")
     async def rules_add(self, interaction: discord.Interaction, rule: str):
         if not await check_allowed(interaction):
@@ -203,8 +207,6 @@ class AI(commands.GroupCog, group_name="ai"):
         return choices[:25]
 
     @rules.command(name="remove", description="Remove a rule by number")
-    @app_commands.allowed_installs(guilds=False, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.autocomplete(index=_autocomplete_index)
     @app_commands.describe(index="Rule number to remove")
     async def rules_remove(self, interaction: discord.Interaction, index: int):
@@ -218,8 +220,6 @@ class AI(commands.GroupCog, group_name="ai"):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="tools", description="Enable or disable AI web search")
-    @app_commands.allowed_installs(guilds=False, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(enabled="Whether web search is enabled")
     async def tools(self, interaction: discord.Interaction, enabled: bool):
         if not await check_allowed(interaction):

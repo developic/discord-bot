@@ -10,8 +10,6 @@ class Synz(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="synz", description="Sync all slash commands")
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.allowed_installs(guilds=False, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def synz(self, interaction: discord.Interaction):
@@ -21,13 +19,6 @@ class Synz(commands.Cog):
         await self.bot.tree.sync()
         embed = discord.Embed(description="Synced all slash commands.", color=COLOR)
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-    @synz.error
-    async def synz_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message(embed=warn("You need administrator permission to sync commands."), ephemeral=True)
-        else:
-            raise error
 
 
 async def setup(bot: commands.Bot):
