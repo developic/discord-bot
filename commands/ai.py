@@ -19,13 +19,18 @@ from ._utils import COLOR, check_allowed, warn
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL = "openai/gpt-oss-120b"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+MODEL = "llama-3.3-70b-versatile"
 MODELS: list[app_commands.Choice[str]] = [
     app_commands.Choice(name="OpenAI GPT-OSS 120B", value="openai/gpt-oss-120b"),
     app_commands.Choice(name="OpenAI GPT-OSS 20B", value="openai/gpt-oss-20b"),
     app_commands.Choice(name="Llama 3.3 70B (versatile)", value="llama-3.3-70b-versatile"),
     app_commands.Choice(name="Llama 3.1 8B (instant)", value="llama-3.1-8b-instant"),
     app_commands.Choice(name="Qwen 3.6 27B", value="qwen/qwen3.6-27b"),
+    app_commands.Choice(name="Gemini 2.5 Flash", value="gemini/gemini-2.5-flash"),
+    app_commands.Choice(name="Gemini 2.5 Flash Lite", value="gemini/gemini-2.5-flash-lite"),
+    app_commands.Choice(name="Gemini 2.0 Flash", value="gemini/gemini-2.0-flash"),
 ]
 
 TOOL_DESC = (
@@ -149,6 +154,62 @@ async def _query_groq(interaction: discord.Interaction, prompt: str, model: str 
     return _strip_think(clean_content or content)
 
 
+async def _query_gemini(interaction: discord.Interaction, prompt: str, model: str):
+    tools_enabled = get_tools_enabled()
+    base_system = get_system_prompt(SYSTEM_PROMPT)
+    system = TOOL_ENABLED_PROMPT if tools_enabled else base_system
+    rules = get_rules()
+    if rules:
+        system += "\n\n" + "\n".join(f"Rule: {r}" for r in rules)
+
+    url = f"{GEMINI_API_URL}/{model.removeprefix('gemini/')}:generateContent?key={GEMINI_API_KEY}"
+    payload: dict = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [
+            {"role": "user", "parts": [{"text": prompt}]}
+        ],
+    }
+
+    if tools_enabled:
+        payload["tools"] = [{"googleSearch": {}}]
+
+    timeout = aiohttp.ClientTimeout(total=30)
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.post(url, json=payload) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                print(f"[Gemini] {resp.status}: {body[:300]}")
+                return None
+            data = await resp.json()
+
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        return None
+
+    grounding = data.get("candidates", [{}])[0].get("groundingMetadata")
+    if grounding:
+        sources = grounding.get("groundingChunks", [])
+        if sources:
+            lines = []
+            for s in sources:
+                url_ = s.get("web", {}).get("uri", "")
+                title = s.get("web", {}).get("title", "")
+                if url_:
+                    lines.append(f"[{title or url_}]({url_})")
+            if lines:
+                text += "\n\n**Sources:**\n" + "\n".join(lines)
+
+    return _strip_think(text)
+
+
+async def _query(interaction: discord.Interaction, prompt: str, model: str):
+    if model.startswith("gemini/"):
+        return await _query_gemini(interaction, prompt, model)
+    return await _query_groq(interaction, prompt, model)
+
+
 @app_commands.allowed_installs(guilds=False, users=True)
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 class AI(commands.GroupCog, group_name="ai"):
@@ -159,14 +220,14 @@ class AI(commands.GroupCog, group_name="ai"):
         current_lower = current.lower()
         return [c for c in MODELS if current_lower in c.name.lower() or current_lower in c.value.lower()][:25]
 
-    @app_commands.command(name="chat", description="Ask Groq AI a question")
-    @app_commands.describe(prompt="Your question for the AI", model="Model to use (default: GPT-OSS 120B)")
+    @app_commands.command(name="chat", description="Ask the AI a question")
+    @app_commands.describe(prompt="Your question for the AI", model="Model to use (default: Llama 3.3 70B)")
     @app_commands.autocomplete(model=_autocomplete_models)
     async def chat(self, interaction: discord.Interaction, prompt: str, model: str | None = None):
         if not await check_allowed(interaction):
             return
         await interaction.response.defer()
-        content = await _query_groq(interaction, prompt, model or MODEL)
+        content = await _query(interaction, prompt, model or MODEL)
         if content is None:
             return
         embed = discord.Embed(description=content[:4096], color=COLOR)
