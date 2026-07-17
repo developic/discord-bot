@@ -1,9 +1,22 @@
 import aiohttp
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 from discord.ext import commands
 
 from ._utils import COLOR, check_allowed, fetch_json, warn
+
+
+class JokeLayout(ui.LayoutView):
+    def __init__(self, text: str):
+        super().__init__(timeout=120)
+
+        container = ui.Container[
+            "JokeLayout"
+        ](
+            ui.TextDisplay(text),
+            accent_color=COLOR,
+        )
+        self.add_item(container)
 
 
 class Joke(commands.Cog):
@@ -30,7 +43,8 @@ class Joke(commands.Cog):
         else:
             text = f"{data['setup']}\n\n{data['delivery']}"
 
-        await interaction.followup.send(embed=discord.Embed(description=text, color=COLOR))
+        view = JokeLayout(text)
+        await interaction.followup.send(view=view)
 
 
 async def setup(bot: commands.Bot):

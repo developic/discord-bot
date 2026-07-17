@@ -1,8 +1,45 @@
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 from discord.ext import commands
 
 from ._utils import COLOR, check_allowed
+
+
+class UserinfoLayout(ui.LayoutView):
+    def __init__(self, target: discord.User | discord.Member, interaction: discord.Interaction):
+        super().__init__()
+
+        lines = [
+            f"**Username:** {target.name}",
+            f"**Global Name:** {target.global_name or 'None'}",
+            f"**Display Name:** {target.display_name}",
+            f"**ID:** `{target.id}`",
+            f"**Bot:** {'Yes' if target.bot else 'No'}",
+            f"**Created:** {discord.utils.format_dt(target.created_at, style='R')}",
+        ]
+
+        if isinstance(target, discord.Member) and interaction.guild:
+            lines.append(f"**Nickname:** {target.nick or 'None'}")
+            lines.append(f"**Joined:** {discord.utils.format_dt(target.joined_at, style='R')}")
+
+        section = ui.Section(
+            ui.TextDisplay(f"### who is {target.name}?"),
+            ui.TextDisplay("\n".join(lines)),
+            accessory=ui.Thumbnail(
+                media=discord.UnfurledMediaItem(url=target.display_avatar.url),
+            ),
+        )
+
+        children: list = [section]
+
+        if target.banner:
+            children.append(ui.Separator())
+            gallery = ui.MediaGallery()
+            gallery.add_item(media=target.banner.url)
+            children.append(gallery)
+
+        container = ui.Container(*children, accent_color=target.accent_color or COLOR)
+        self.add_item(container)
 
 
 class Userinfo(commands.Cog):
@@ -18,28 +55,8 @@ class Userinfo(commands.Cog):
             return
         target = target or interaction.user
 
-        embed = discord.Embed(title="User Info", color=target.accent_color or COLOR)
-        embed.set_thumbnail(url=target.display_avatar.url)
-
-        embed.add_field(name="Username", value=target.name, inline=True)
-        embed.add_field(name="Global Name", value=target.global_name or "None", inline=True)
-        embed.add_field(name="Display Name", value=target.display_name, inline=True)
-        embed.add_field(name="ID", value=target.id, inline=True)
-        embed.add_field(name="Bot", value="Yes" if target.bot else "No", inline=True)
-        embed.add_field(name="Created", value=discord.utils.format_dt(target.created_at, style="R"), inline=False)
-
-        if target.banner:
-            embed.set_image(url=target.banner.url)
-
-        if isinstance(target, discord.Member) and interaction.guild:
-            embed.add_field(name="Nickname", value=target.nick or "None", inline=True)
-            embed.add_field(name="Joined", value=discord.utils.format_dt(target.joined_at, style="R"), inline=True)
-
-            roles = [r.mention for r in target.roles if r != interaction.guild.default_role]
-            if roles:
-                embed.add_field(name=f"Roles ({len(roles)})", value=" ".join(roles), inline=False)
-
-        await interaction.response.send_message(embed=embed)
+        view = UserinfoLayout(target, interaction)
+        await interaction.response.send_message(view=view)
 
 
 async def setup(bot: commands.Bot):

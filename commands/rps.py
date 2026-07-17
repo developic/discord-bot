@@ -1,87 +1,114 @@
 import random
 
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 from discord.ext import commands
 
-from ._utils import COLOR, check_allowed, ensure_author, TimeoutView
+from ._utils import COLOR, check_allowed, ensure_author
 
 CHOICES = ("rock", "paper", "scissors")
 BEATS = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
 CHOICE_EMOJIS = {"rock": "\U0001faa8", "paper": "\U0001f4c4", "scissors": "\u2702\ufe0f"}
 
 
-class RPSButton(discord.ui.Button):
-    def __init__(self, choice: str):
-        super().__init__(
-            label=choice.capitalize(),
-            emoji=CHOICE_EMOJIS[choice],
-            style=discord.ButtonStyle.secondary,
-        )
-        self.choice = choice
-
-    async def callback(self, interaction: discord.Interaction):
-        view: RPSView = self.view
-        if view.done:
-            await interaction.response.defer()
-            return
-
-        if not await ensure_author(interaction, view):
-            return
-
-        view.done = True
-        for child in view.children:
-            child.disabled = True
-
-        bot_choice = random.choice(CHOICES)
-        user_choice = self.choice
-
-        if user_choice == bot_choice:
-            result = "It's a tie!"
-            color = 0x2b2d31
-        elif BEATS[user_choice] == bot_choice:
-            result = "You win!"
-            color = 0x57f287
-        else:
-            result = "You lose!"
-            color = 0xed4245
-
-        embed = discord.Embed(
-            title="Rock Paper Scissors",
-            description=f"{CHOICE_EMOJIS[user_choice]} **{user_choice.capitalize()}** vs **{bot_choice.capitalize()}** {CHOICE_EMOJIS[bot_choice]}\n**{result}**",
-            color=color,
-        )
-
-        view.clear_items()
-        view.add_item(PlayAgainButton())
-
-        await interaction.response.edit_message(embed=embed, view=view)
-
-
-class PlayAgainButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Play Again", style=discord.ButtonStyle.primary)
-
-    async def callback(self, interaction: discord.Interaction):
-        if not await ensure_author(interaction, self.view):
-            return
-
-        view = RPSView(author_id=interaction.user.id)
-        embed = discord.Embed(
-            title="Rock Paper Scissors",
-            description="**Choose your move!**",
-            color=COLOR,
-        )
-        await interaction.response.edit_message(embed=embed, view=view)
-
-
-class RPSView(TimeoutView):
+class RPSView(ui.LayoutView):
     def __init__(self, author_id: int):
         super().__init__(timeout=60)
         self.author_id = author_id
         self.done = False
+        self._build_initial()
+
+    def _build_initial(self):
+        self.clear_items()
+
+        action_row = ui.ActionRow()
         for choice in CHOICES:
-            self.add_item(RPSButton(choice))
+            btn = ui.Button(
+                label=choice.capitalize(),
+                emoji=CHOICE_EMOJIS[choice],
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"rps_{choice}",
+            )
+            btn.choice = choice
+            btn.callback = self._on_choice(btn)
+            action_row.add_item(btn)
+
+        self._action_row = action_row
+
+        container = ui.Container(
+            ui.TextDisplay("### Rock Paper Scissors"),
+            ui.TextDisplay("**Choose your move!**"),
+            action_row,
+        )
+        self.add_item(container)
+
+    def _on_choice(self, btn: ui.Button):
+        async def callback(interaction: discord.Interaction):
+            if self.done:
+                await interaction.response.defer()
+                return
+            if not await ensure_author(interaction, self):
+                return
+
+            self.done = True
+            bot_choice = random.choice(CHOICES)
+            user_choice = btn.choice
+
+            if user_choice == bot_choice:
+                result = "It's a tie!"
+                color = 0x2b2d31
+            elif BEATS[user_choice] == bot_choice:
+                result = "You win!"
+                color = 0x57f287
+            else:
+                result = "You lose!"
+                color = 0xed4245
+
+            text = (
+                f"{CHOICE_EMOJIS[user_choice]} **{user_choice.capitalize()}**"
+                f" vs **{bot_choice.capitalize()}** {CHOICE_EMOJIS[bot_choice]}"
+                f"\n**{result}**"
+            )
+
+            self.clear_items()
+
+            play_row = ui.ActionRow()
+            play_btn = ui.Button(
+                label="Play Again",
+                style=discord.ButtonStyle.primary,
+                custom_id="rps_play_again",
+            )
+            play_btn.callback = self._on_play_again
+            play_row.add_item(play_btn)
+            self._action_row = play_row
+
+            container = ui.Container(
+                ui.TextDisplay("### Rock Paper Scissors"),
+                ui.TextDisplay(text),
+                play_row,
+                accent_color=color,
+            )
+            self.add_item(container)
+
+            await interaction.response.edit_message(view=self)
+
+        return callback
+
+    async def _on_play_again(self, interaction: discord.Interaction):
+        if not await ensure_author(interaction, self):
+            return
+
+        self.done = False
+        self._build_initial()
+        await interaction.response.edit_message(view=self)
+
+    async def on_timeout(self):
+        for btn in self._action_row.children:
+            btn.disabled = True
+        try:
+            await self.message.edit(view=self)
+        except Exception:
+            pass
 
 
 class RPS(commands.Cog):
@@ -94,12 +121,7 @@ class RPS(commands.Cog):
     async def rps(self, interaction: discord.Interaction):
         if not await check_allowed(interaction):
             return
-        embed = discord.Embed(
-            title="Rock Paper Scissors",
-            description="**Choose your move!**",
-            color=COLOR,
-        )
-        await interaction.response.send_message(embed=embed, view=RPSView(author_id=interaction.user.id))
+        await interaction.response.send_message(view=RPSView(author_id=interaction.user.id))
 
 
 async def setup(bot: commands.Bot):

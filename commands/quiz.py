@@ -6,43 +6,66 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ._utils import COLOR, check_allowed, fetch_json, TimeoutView, warn
+from ._utils import COLOR, check_allowed, fetch_json, warn
 
 
-class QuizButton(discord.ui.Button):
-    def __init__(self, label: str, is_correct: bool):
-        super().__init__(label=html.unescape(label), style=discord.ButtonStyle.secondary)
-        self.is_correct = is_correct
-
-    async def callback(self, interaction: discord.Interaction):
-        view: QuizView = self.view
-        if view.answered:
-            await interaction.response.defer()
-            return
-
-        view.answered = True
-        for child in view.children:
-            child.disabled = True
-            if isinstance(child, QuizButton) and child.is_correct:
-                child.style = discord.ButtonStyle.success
-            elif child is self and not self.is_correct:
-                child.style = discord.ButtonStyle.danger
-
-        await interaction.response.edit_message(view=view)
-
-        if self.is_correct:
-            await interaction.followup.send("\u2705 Correct!", ephemeral=True)
-        else:
-            await interaction.followup.send(f"\u274c The answer was: **{html.unescape(view.correct_answer)}**", ephemeral=True)
-
-
-class QuizView(TimeoutView):
-    def __init__(self, correct_answer: str, answers: list[str]):
+class QuizView(discord.ui.LayoutView):
+    def __init__(self, correct_answer: str, answers: list[str], category: str, question: str, difficulty: str):
         super().__init__(timeout=60)
         self.correct_answer = correct_answer
         self.answered = False
-        for answer in answers:
-            self.add_item(QuizButton(answer, answer == correct_answer))
+
+        action_row = discord.ui.ActionRow()
+        for i, answer in enumerate(answers):
+            is_correct = (answer == correct_answer)
+            btn = discord.ui.Button(
+                label=html.unescape(answer),
+                style=discord.ButtonStyle.secondary,
+                custom_id=str(i),
+            )
+            btn.is_correct = is_correct
+            btn.callback = self._make_callback(btn)
+            action_row.add_item(btn)
+
+        self._action_row = action_row
+
+        container = discord.ui.Container(
+            discord.ui.TextDisplay(f"\U0001f4dd {category}"),
+            discord.ui.TextDisplay(question),
+            discord.ui.Separator(),
+            discord.ui.TextDisplay(f"*Difficulty: {difficulty}*"),
+            action_row,
+            accent_color=COLOR,
+        )
+        self.add_item(container)
+
+    def _make_callback(self, btn: discord.ui.Button):
+        async def callback(interaction: discord.Interaction):
+            if self.answered:
+                await interaction.response.defer()
+                return
+            self.answered = True
+            for b in self._action_row.children:
+                b.disabled = True
+                if b.is_correct:
+                    b.style = discord.ButtonStyle.success
+                elif b is btn and not btn.is_correct:
+                    b.style = discord.ButtonStyle.danger
+            await interaction.response.edit_message(view=self)
+            if btn.is_correct:
+                await interaction.followup.send("\u2705 Correct!", ephemeral=True)
+            else:
+                display = html.unescape(self.correct_answer)
+                await interaction.followup.send(f"\u274c The answer was: **{display}**", ephemeral=True)
+        return callback
+
+    async def on_timeout(self):
+        for btn in self._action_row.children:
+            btn.disabled = True
+        try:
+            await self.message.edit(view=self)
+        except Exception:
+            pass
 
 
 class Quiz(commands.Cog):
@@ -74,15 +97,8 @@ class Quiz(commands.Cog):
         answers = [correct] + incorrect
         random.shuffle(answers)
 
-        embed = discord.Embed(
-            title=f"\ud83d\udcdd {category}",
-            description=question,
-            color=COLOR,
-        )
-        embed.set_footer(text=f"Difficulty: {difficulty}")
-
-        view = QuizView(correct, answers)
-        await interaction.followup.send(embed=embed, view=view)
+        view = QuizView(correct, answers, category, question, difficulty)
+        await interaction.followup.send(view=view)
 
 
 async def setup(bot: commands.Bot):
