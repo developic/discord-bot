@@ -31,7 +31,6 @@ class Bot(commands.Bot):
         for file in os.listdir("commands"):
             if file.endswith(".py") and not file.startswith("_"):
                 await self.load_extension(f"commands.{file[:-3]}")
-        await self.tree.sync()
 
     async def on_ready(self):
         process = psutil.Process(os.getpid())
