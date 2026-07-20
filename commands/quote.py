@@ -32,13 +32,13 @@ class Quote(commands.Cog):
         await interaction.response.defer()
 
         async with aiohttp.ClientSession() as session:
-            data = await fetch_json(session, "https://api.quotable.io/random")
+            data = await fetch_json(session, "https://zenquotes.io/api/random")
 
-        if data is None:
+        if data is None or not isinstance(data, list):
             await interaction.followup.send(embed=warn("Could not fetch a quote right now."))
             return
 
-        view = QuoteLayout(data["content"], data["author"])
+        view = QuoteLayout(data[0]["q"], data[0]["a"])
         await interaction.followup.send(view=view)
 
 
